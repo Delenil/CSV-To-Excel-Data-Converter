@@ -1,4 +1,4 @@
-# character_management.py
+
 import pandas as pd
 
 from .models import Character

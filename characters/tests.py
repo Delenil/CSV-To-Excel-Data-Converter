@@ -23,7 +23,7 @@ class CharacterTests(TestCase):
 
     def test_character_creation_invalid_name(self):
         response = self.client.post(reverse('add_character'), {
-            'name': 'gandalf',  # Invalid because it doesn't start with a capital letter
+            'name': 'gandalf',
             'class': 'Mage',
             'position': 'Ranged_Dps'
         })
@@ -70,7 +70,8 @@ class CharacterTests(TestCase):
         self.assertContains(response, 'Gandalf')
 
     def test_character_delete(self):
-        character = Character.objects.create(name='Gandalf', character_class='Mage', position='Ranged_Dps', user=self.user)
+        character = Character.objects.create(name='Gandalf', character_class='Mage',
+                                             position='Ranged_Dps', user=self.user)
         response = self.client.post(reverse('delete_character', args=[character.id]))
         self.assertRedirects(response, reverse('character_list'))
         self.assertFalse(Character.objects.filter(id=character.id).exists())
