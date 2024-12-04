@@ -122,22 +122,35 @@ def character_list(request):
 @login_required
 def add_character(request):
     if request.method == "POST":
-        name = request.POST.get('name')
+        name = request.POST.get('name').strip()  # Strip any whitespace
         character_class = request.POST.get('class')
         position = request.POST.get('position')
 
+        # Check if the name starts with a capital letter
+        if not name or not name[0].isupper():
+            return render(request, 'add_character.html', {
+                'error_message': 'Name must start with a capital letter.'
+            })
+
         if not character_is_valid(name, character_class, position):
-            return render(request, 'add_character.html',
-                          {'error_message': f"{character_class} cannot be a {position}."})
+            return render(request, 'add_character.html', {
+                'error_message': f"{character_class} cannot be a {position}."
+            })
 
         if Character.objects.filter(name=name, user=request.user).exists():
-            return render(request, 'add_character.html', {'error_message': 'Names cannot be the same for the same user.'})
+            return render(request, 'add_character.html', {
+                'error_message': 'Names cannot be the same for the same user.'
+            })
 
         if position == 'Tank' and Character.objects.filter(position='Tank', user=request.user).count() >= MAX_TANKS:
-            return render(request, 'add_character.html', {'error_message': 'There cannot be more than 2 Tanks.'})
+            return render(request, 'add_character.html', {
+                'error_message': 'There cannot be more than 2 Tanks.'
+            })
 
         if position == 'Heal' and Character.objects.filter(position='Heal', user=request.user).count() >= MAX_HEALS:
-            return render(request, 'add_character.html', {'error_message': 'There cannot be more than 2 Healers.'})
+            return render(request, 'add_character.html', {
+                'error_message': 'There cannot be more than 2 Healers.'
+            })
 
         Character.objects.create(name=name, character_class=character_class, position=position, user=request.user)
         return redirect('character_list')
