@@ -31,7 +31,7 @@ def upload_csv(request):
     if request.method == "POST" and request.FILES['file']:
         csv_file = request.FILES['file']
 
-        # Read the CSV directly into a string
+
         character_data = {}
         tank_count = 0
         heal_count = 0
@@ -72,12 +72,12 @@ def upload_csv(request):
                             name=character_data['Name'],
                             character_class=character_data['Class'],
                             position=character_data['Position'],
-                            user=request.user  # Associate character with the logged-in user
+                            user=request.user
                         )
 
                 character_data = {}
 
-        # Handle the last character if the file didn't end with a newline
+
         if character_data and all(k in character_data for k in ['Name', 'Class', 'Position']):
             if character_data['Name'] in names_set:
                 error_messages.append(f"Names cannot be the same: {character_data['Name']}")
@@ -115,7 +115,7 @@ def upload_csv(request):
 
 @login_required
 def character_list(request):
-    characters = Character.objects.filter(user=request.user)[:MAX_DISPLAYED_CHARACTERS]  # Limit to logged-in user's characters
+    characters = Character.objects.filter(user=request.user)[:MAX_DISPLAYED_CHARACTERS]
     return render(request, 'character_list.html', {'characters': characters})
 
 
@@ -147,14 +147,25 @@ def add_character(request):
 
 @login_required
 def delete_character(request, character_id):
-    character = get_object_or_404(Character, id=character_id, user=request.user)  # Ensure the character belongs to the user
+    character = get_object_or_404(Character, id=character_id, user=request.user)
     character.delete()
     return redirect('character_list')
 
 
 @login_required
 def export_to_excel(request):
-    characters = Character.objects.filter(user=request.user).values()  # Filter by user
+
+    characters = Character.objects.filter(user=request.user)[:MAX_DISPLAYED_CHARACTERS].values()
+
+
+    if not characters:
+
+        return render(request, 'character_list.html', {
+            'characters': [],
+            'error_message': 'No characters available to export.'
+        })
+
+
     df = pd.DataFrame(list(characters))
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -191,7 +202,7 @@ def user_login(request):
 @login_required
 def user_logout(request):
     logout(request)
-    return redirect('landing_page')  # Redirect to landing page after logout
+    return redirect('landing_page')
 
 def landing_page(request):
     return render(request, 'landing_page.html')

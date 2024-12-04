@@ -3,10 +3,16 @@
 {% block title %}Landing Page{% endblock %}
 
 {% block content %}
-<h1>Welcome to the Character Manager</h1>
-{% if user.is_authenticated %}
-    <p>You are logged in as {{ user.username }}.</p>  <!-- Display username -->
-{% else %}
-    <p>Please log in or register.</p>
-{% endif %}
+<div class="container">
+    <h1>Welcome to the Character Manager</h1>
+    {% if user.is_authenticated %}
+        <p>You are logged in as <strong>{{ user.username }}</strong>.</p>  <!-- Display username in bold -->
+    {% else %}
+        <p>Please log in or register to start managing your characters.</p>
+        <div class="links">
+            <a href="{% url 'login' %}">Login</a>
+            <a href="{% url 'register' %}">Register</a>
+        </div>
+    {% endif %}
+</div>
 {% endblock %}
