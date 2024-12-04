@@ -31,7 +31,6 @@ def upload_csv(request):
     if request.method == "POST" and request.FILES['file']:
         csv_file = request.FILES['file']
 
-
         character_data = {}
         tank_count = 0
         heal_count = 0
@@ -47,10 +46,15 @@ def upload_csv(request):
                 character_data[key] = value
 
             if line == '':
-                if character_data.get('Name') in names_set:
-                    error_messages.append(f"Names cannot be the same: {character_data['Name']}")
+                # Check if name starts with a capital letter
+                name = character_data.get('Name')
+                if name and not name[0].isupper():
+                    error_messages.append('Name must start with a capital letter.')
+
+                if name in names_set:
+                    error_messages.append(f"Names cannot be the same: {name}")
                 else:
-                    names_set.add(character_data['Name'])
+                    names_set.add(name)
 
                 if 'Tank' in character_data.get('Position', ''):
                     tank_count += 1
@@ -67,7 +71,7 @@ def upload_csv(request):
                     if heal_count > MAX_HEALS:
                         error_messages.append("There cannot be more than 2 Healers.")
 
-                    if not any(error_messages):
+                    if not error_messages:  # No error messages means we can create the character
                         Character.objects.create(
                             name=character_data['Name'],
                             character_class=character_data['Class'],
@@ -77,12 +81,16 @@ def upload_csv(request):
 
                 character_data = {}
 
-
+        # Final check for any remaining character data after the last line
         if character_data and all(k in character_data for k in ['Name', 'Class', 'Position']):
-            if character_data['Name'] in names_set:
-                error_messages.append(f"Names cannot be the same: {character_data['Name']}")
+            name = character_data['Name']
+            if name and not name[0].isupper():
+                error_messages.append('Name must start with a capital letter.')
+
+            if name in names_set:
+                error_messages.append(f"Names cannot be the same: {name}")
             else:
-                names_set.add(character_data['Name'])
+                names_set.add(name)
 
             if 'Tank' in character_data.get('Position', ''):
                 tank_count += 1
@@ -98,12 +106,12 @@ def upload_csv(request):
             if heal_count > MAX_HEALS:
                 error_messages.append("There cannot be more than 2 Healers.")
 
-            if not any(error_messages):
+            if not error_messages:
                 Character.objects.create(
                     name=character_data['Name'],
                     character_class=character_data['Class'],
                     position=character_data['Position'],
-                    user=request.user  # Associate character with the logged-in user
+                    user=request.user
                 )
 
         if error_messages:
@@ -111,7 +119,6 @@ def upload_csv(request):
 
         return redirect('character_list')
     return render(request, 'upload_csv.html')
-
 
 @login_required
 def character_list(request):

@@ -52,11 +52,27 @@
         a:hover {
             text-decoration: underline;
         }
+        .error-message {
+            color: red;
+            margin-bottom: 20px;
+            text-align: left;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Upload CSV File</h1>
+
+        {% if error_messages %}
+            <div class="error-message">
+                <ul>
+                    {% for message in error_messages %}
+                        <li>{{ message }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
         <form method="POST" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="file" name="file" accept=".csv" required>
