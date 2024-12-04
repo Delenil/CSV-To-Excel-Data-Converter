@@ -4,9 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Character List</title>
+    <style>
+        button {
+            padding: 10px 15px;
+            background-color: #007bff; /* Bootstrap primary color */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 20px; /* Margin below the button */
+        }
+
+        button:hover {
+            background-color: #0056b3; /* Darker shade for hover effect */
+        }
+    </style>
+    <script>
+        function goBack() {
+            // Get the previous page from history
+            if (document.referrer.includes('/login/')) {
+                // Redirect to a safe page if the last page was login
+                window.location.href = "{% url 'character_list' %}"; // Redirect to character list or any other page
+            } else {
+                window.history.back(); // Go back to the last page
+            }
+        }
+    </script>
 </head>
 <body>
     <h1>Character List</h1>
+    
+    <!-- Back Button -->
+    <button onclick="goBack();">Back</button>
+
     <table border="1">
         <thead>
             <tr>
@@ -34,8 +64,11 @@
             {% endfor %}
         </tbody>
     </table>
+    
     <a href="{% url 'export_to_excel' %}">Export to Excel</a>
     <a href="{% url 'upload_csv' %}">Upload New CSV</a>
     <a href="{% url 'add_character' %}">Add New Character</a>
+    <a href="{% url 'logout' %}">Logout</a>
+
 </body>
 </html>

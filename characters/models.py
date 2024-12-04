@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 class Character(models.Model):
     CLASS_CHOICES = [
@@ -21,6 +22,7 @@ class Character(models.Model):
     name = models.CharField(max_length=100)
     character_class = models.CharField(max_length=20, choices=CLASS_CHOICES)
     position = models.CharField(max_length=20, choices=POSITION_CHOICES)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null = True)  # Link to User model
 
     def __str__(self):
         return f"{self.name} - {self.character_class} - {self.position}"

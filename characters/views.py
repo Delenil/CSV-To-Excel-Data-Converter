@@ -1,9 +1,11 @@
+from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import render, redirect, get_object_or_404
 from .models import Character
 from django.http import HttpResponse
 import pandas as pd
 from io import StringIO
-
 
 MAX_TANKS = 2
 MAX_HEALS = 2
@@ -17,7 +19,6 @@ POSITION_CLASS_MAP = {
     'Melee_Dps': ['Warrior', 'Paladin', 'Druid'],
 }
 
-
 def character_is_valid(name, character_class, position):
     if position not in POSITION_CLASS_MAP:
         return False
@@ -25,7 +26,7 @@ def character_is_valid(name, character_class, position):
         return False
     return True
 
-
+@login_required
 def upload_csv(request):
     if request.method == "POST" and request.FILES['file']:
         csv_file = request.FILES['file']
@@ -37,7 +38,6 @@ def upload_csv(request):
         names_set = set()
         error_messages = []
 
-        # Use StringIO to read the file content without saving it
         file_content = StringIO(csv_file.read().decode('utf-8'))
 
         for line in file_content:
@@ -57,7 +57,6 @@ def upload_csv(request):
                 if 'Heal' in character_data.get('Position', ''):
                     heal_count += 1
 
-                # Validate character class and position
                 if not character_is_valid(character_data.get('Name'), character_data.get('Class'),
                                           character_data.get('Position')):
                     error_messages.append(f"{character_data['Class']} cannot be a {character_data['Position']}.")
@@ -72,7 +71,8 @@ def upload_csv(request):
                         Character.objects.create(
                             name=character_data['Name'],
                             character_class=character_data['Class'],
-                            position=character_data['Position']
+                            position=character_data['Position'],
+                            user=request.user  # Associate character with the logged-in user
                         )
 
                 character_data = {}
@@ -89,7 +89,6 @@ def upload_csv(request):
             if 'Heal' in character_data.get('Position', ''):
                 heal_count += 1
 
-            # Validate character class and position
             if not character_is_valid(character_data.get('Name'), character_data.get('Class'),
                                       character_data.get('Position')):
                 error_messages.append(f"{character_data['Class']} cannot be a {character_data['Position']}.")
@@ -103,7 +102,8 @@ def upload_csv(request):
                 Character.objects.create(
                     name=character_data['Name'],
                     character_class=character_data['Class'],
-                    position=character_data['Position']
+                    position=character_data['Position'],
+                    user=request.user  # Associate character with the logged-in user
                 )
 
         if error_messages:
@@ -113,11 +113,13 @@ def upload_csv(request):
     return render(request, 'upload_csv.html')
 
 
+@login_required
 def character_list(request):
-    characters = Character.objects.all()[:MAX_DISPLAYED_CHARACTERS]  # Limit to MAX_DISPLAYED_CHARACTERS
+    characters = Character.objects.filter(user=request.user)[:MAX_DISPLAYED_CHARACTERS]  # Limit to logged-in user's characters
     return render(request, 'character_list.html', {'characters': characters})
 
 
+@login_required
 def add_character(request):
     if request.method == "POST":
         name = request.POST.get('name')
@@ -128,29 +130,31 @@ def add_character(request):
             return render(request, 'add_character.html',
                           {'error_message': f"{character_class} cannot be a {position}."})
 
-        if Character.objects.filter(name=name).exists():
-            return render(request, 'add_character.html', {'error_message': 'Names cannot be the same.'})
+        if Character.objects.filter(name=name, user=request.user).exists():
+            return render(request, 'add_character.html', {'error_message': 'Names cannot be the same for the same user.'})
 
-        if position == 'Tank' and Character.objects.filter(position='Tank').count() >= MAX_TANKS:
+        if position == 'Tank' and Character.objects.filter(position='Tank', user=request.user).count() >= MAX_TANKS:
             return render(request, 'add_character.html', {'error_message': 'There cannot be more than 2 Tanks.'})
 
-        if position == 'Heal' and Character.objects.filter(position='Heal').count() >= MAX_HEALS:
+        if position == 'Heal' and Character.objects.filter(position='Heal', user=request.user).count() >= MAX_HEALS:
             return render(request, 'add_character.html', {'error_message': 'There cannot be more than 2 Healers.'})
 
-        Character.objects.create(name=name, character_class=character_class, position=position)
+        Character.objects.create(name=name, character_class=character_class, position=position, user=request.user)
         return redirect('character_list')
 
     return render(request, 'add_character.html')
 
 
+@login_required
 def delete_character(request, character_id):
-    character = get_object_or_404(Character, id=character_id)
+    character = get_object_or_404(Character, id=character_id, user=request.user)  # Ensure the character belongs to the user
     character.delete()
     return redirect('character_list')
 
 
+@login_required
 def export_to_excel(request):
-    characters = Character.objects.all().values()
+    characters = Character.objects.filter(user=request.user).values()  # Filter by user
     df = pd.DataFrame(list(characters))
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -158,4 +162,37 @@ def export_to_excel(request):
 
     df.to_excel(response, index=False)
     return response
+
+
+# User registration and authentication views
+def register(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)  # Automatically log the user in after registration
+            return redirect('character_list')  # Redirect to character list or any desired page
+    else:
+        form = UserCreationForm()
+    return render(request, 'registration/register.html', {'form': form})
+
+def user_login(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect('character_list')  # Redirect after successful login
+        else:
+            return render(request, 'registration/login.html', {'error_message': 'Invalid credentials'})
+    return render(request, 'registration/login.html')
+
+@login_required
+def user_logout(request):
+    logout(request)
+    return redirect('landing_page')  # Redirect to landing page after logout
+
+def landing_page(request):
+    return render(request, 'landing_page.html')
 
