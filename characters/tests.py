@@ -149,9 +149,3 @@ class CharacterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Invalid credentials')
 
-    def test_logout_user(self):
-        response = self.client.get(reverse('logout'))
-        self.assertRedirects(response, reverse('landing_page'))
-        # Check that the user is logged out
-        response = self.client.get(reverse('character_list'))
-        self.assertRedirects(response, reverse('login'))

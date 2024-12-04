@@ -1,30 +1,15 @@
+# views.py
 from django.contrib.auth import login, authenticate, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import render, redirect, get_object_or_404
 from .models import Character
+from .character_management import CharacterValidator, CharacterManager, MAX_HEALS, MAX_TANKS  # Import the new classes
 from django.http import HttpResponse
 import pandas as pd
 from io import StringIO
 
-MAX_TANKS = 2
-MAX_HEALS = 2
 MAX_DISPLAYED_CHARACTERS = 10
-
-# Allowed position-class mappings
-POSITION_CLASS_MAP = {
-    'Tank': ['Paladin', 'Warrior'],
-    'Heal': ['Shaman', 'Paladin', 'Druid'],
-    'Ranged_Dps': ['Warlock', 'Mage', 'Shaman'],
-    'Melee_Dps': ['Warrior', 'Paladin', 'Druid'],
-}
-
-def character_is_valid(name, character_class, position):
-    if position not in POSITION_CLASS_MAP:
-        return False
-    if character_class not in POSITION_CLASS_MAP[position]:
-        return False
-    return True
 
 @login_required
 def upload_csv(request):
@@ -46,73 +31,27 @@ def upload_csv(request):
                 character_data[key] = value
 
             if line == '':
-                # Check if name starts with a capital letter
-                name = character_data.get('Name')
-                if name and not name[0].isupper():
-                    error_messages.append('Name must start with a capital letter.')
-
-                if name in names_set:
-                    error_messages.append(f"Names cannot be the same: {name}")
-                else:
-                    names_set.add(name)
+                # Validate character data
+                error_messages += CharacterValidator.validate(character_data, names_set, tank_count, heal_count)
 
                 if 'Tank' in character_data.get('Position', ''):
                     tank_count += 1
                 if 'Heal' in character_data.get('Position', ''):
                     heal_count += 1
 
-                if not character_is_valid(character_data.get('Name'), character_data.get('Class'),
-                                          character_data.get('Position')):
-                    error_messages.append(f"{character_data['Class']} cannot be a {character_data['Position']}.")
+                if error_messages:
+                    character_data = {}
+                    continue
 
-                if all(k in character_data for k in ['Name', 'Class', 'Position']):
-                    if tank_count > MAX_TANKS:
-                        error_messages.append("There cannot be more than 2 Tanks.")
-                    if heal_count > MAX_HEALS:
-                        error_messages.append("There cannot be more than 2 Healers.")
-
-                    if not error_messages:  # No error messages means we can create the character
-                        Character.objects.create(
-                            name=character_data['Name'],
-                            character_class=character_data['Class'],
-                            position=character_data['Position'],
-                            user=request.user
-                        )
-
+                CharacterManager.create_character(character_data, request.user)
                 character_data = {}
 
-        # Final check for any remaining character data after the last line
+        # Final check for remaining character data
         if character_data and all(k in character_data for k in ['Name', 'Class', 'Position']):
-            name = character_data['Name']
-            if name and not name[0].isupper():
-                error_messages.append('Name must start with a capital letter.')
-
-            if name in names_set:
-                error_messages.append(f"Names cannot be the same: {name}")
-            else:
-                names_set.add(name)
-
-            if 'Tank' in character_data.get('Position', ''):
-                tank_count += 1
-            if 'Heal' in character_data.get('Position', ''):
-                heal_count += 1
-
-            if not character_is_valid(character_data.get('Name'), character_data.get('Class'),
-                                      character_data.get('Position')):
-                error_messages.append(f"{character_data['Class']} cannot be a {character_data['Position']}.")
-
-            if tank_count > MAX_TANKS:
-                error_messages.append("There cannot be more than 2 Tanks.")
-            if heal_count > MAX_HEALS:
-                error_messages.append("There cannot be more than 2 Healers.")
+            error_messages += CharacterValidator.validate(character_data, names_set, tank_count, heal_count)
 
             if not error_messages:
-                Character.objects.create(
-                    name=character_data['Name'],
-                    character_class=character_data['Class'],
-                    position=character_data['Position'],
-                    user=request.user
-                )
+                CharacterManager.create_character(character_data, request.user)
 
         if error_messages:
             return render(request, 'upload_csv.html', {'error_messages': error_messages})
@@ -125,21 +64,19 @@ def character_list(request):
     characters = Character.objects.filter(user=request.user)[:MAX_DISPLAYED_CHARACTERS]
     return render(request, 'character_list.html', {'characters': characters})
 
-
 @login_required
 def add_character(request):
     if request.method == "POST":
-        name = request.POST.get('name').strip()  # Strip any whitespace
+        name = request.POST.get('name').strip()
         character_class = request.POST.get('class')
         position = request.POST.get('position')
 
-        # Check if the name starts with a capital letter
-        if not name or not name[0].isupper():
+        if not CharacterValidator.name_starts_with_capital(name):
             return render(request, 'add_character.html', {
                 'error_message': 'Name must start with a capital letter.'
             })
 
-        if not character_is_valid(name, character_class, position):
+        if not CharacterValidator.is_valid_position_class(position, character_class):
             return render(request, 'add_character.html', {
                 'error_message': f"{character_class} cannot be a {position}."
             })
@@ -149,21 +86,20 @@ def add_character(request):
                 'error_message': 'Names cannot be the same for the same user.'
             })
 
-        if position == 'Tank' and Character.objects.filter(position='Tank', user=request.user).count() >= MAX_TANKS:
+        if position == 'Tank' and CharacterManager.count_characters_by_position(request.user, 'Tank') >= MAX_TANKS:
             return render(request, 'add_character.html', {
                 'error_message': 'There cannot be more than 2 Tanks.'
             })
 
-        if position == 'Heal' and Character.objects.filter(position='Heal', user=request.user).count() >= MAX_HEALS:
+        if position == 'Heal' and CharacterManager.count_characters_by_position(request.user, 'Heal') >= MAX_HEALS:
             return render(request, 'add_character.html', {
                 'error_message': 'There cannot be more than 2 Healers.'
             })
 
-        Character.objects.create(name=name, character_class=character_class, position=position, user=request.user)
+        CharacterManager.create_character({'Name': name, 'Class': character_class, 'Position': position}, request.user)
         return redirect('character_list')
 
     return render(request, 'add_character.html')
-
 
 @login_required
 def delete_character(request, character_id):
@@ -171,29 +107,21 @@ def delete_character(request, character_id):
     character.delete()
     return redirect('character_list')
 
-
 @login_required
 def export_to_excel(request):
-
     characters = Character.objects.filter(user=request.user)[:MAX_DISPLAYED_CHARACTERS].values()
 
-
     if not characters:
-
         return render(request, 'character_list.html', {
             'characters': [],
             'error_message': 'No characters available to export.'
         })
 
-
     df = pd.DataFrame(list(characters))
-
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename=characters.xlsx'
-
     df.to_excel(response, index=False)
     return response
-
 
 # User registration and authentication views
 def register(request):
@@ -201,8 +129,8 @@ def register(request):
         form = UserCreationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            login(request, user)  # Automatically log the user in after registration
-            return redirect('character_list')  # Redirect to character list or any desired page
+            login(request, user)
+            return redirect('character_list')
     else:
         form = UserCreationForm()
     return render(request, 'registration/register.html', {'form': form})
@@ -214,7 +142,7 @@ def user_login(request):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            return redirect('character_list')  # Redirect after successful login
+            return redirect('character_list')
         else:
             return render(request, 'registration/login.html', {'error_message': 'Invalid credentials'})
     return render(request, 'registration/login.html')
@@ -226,4 +154,3 @@ def user_logout(request):
 
 def landing_page(request):
     return render(request, 'landing_page.html')
-
