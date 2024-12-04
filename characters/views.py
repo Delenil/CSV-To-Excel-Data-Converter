@@ -2,7 +2,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from .models import Character
 from django.http import HttpResponse
 import pandas as pd
-from django.core.files.storage import FileSystemStorage
+from io import StringIO
+
 
 MAX_TANKS = 2
 MAX_HEALS = 2
@@ -28,58 +29,25 @@ def character_is_valid(name, character_class, position):
 def upload_csv(request):
     if request.method == "POST" and request.FILES['file']:
         csv_file = request.FILES['file']
-        fs = FileSystemStorage()
-        filename = fs.save(csv_file.name, csv_file)
-        filepath = fs.url(filename)
 
-        # Initialize counts and names set
+        # Read the CSV directly into a string
+        character_data = {}
         tank_count = 0
         heal_count = 0
         names_set = set()
         error_messages = []
 
-        # Read CSV and save to database
-        with open(filepath[1:], mode='r') as file:  # Remove leading '/'
-            character_data = {}
-            for line in file:
-                line = line.strip()
-                if ':' in line:
-                    key, value = map(str.strip, line.split(':', 1))
-                    character_data[key] = value
+        # Use StringIO to read the file content without saving it
+        file_content = StringIO(csv_file.read().decode('utf-8'))
 
-                if line == '':
-                    if character_data.get('Name') in names_set:
-                        error_messages.append(f"Names cannot be the same: {character_data['Name']}")
-                    else:
-                        names_set.add(character_data['Name'])
+        for line in file_content:
+            line = line.strip()
+            if ':' in line:
+                key, value = map(str.strip, line.split(':', 1))
+                character_data[key] = value
 
-                    if 'Tank' in character_data.get('Position', ''):
-                        tank_count += 1
-                    if 'Heal' in character_data.get('Position', ''):
-                        heal_count += 1
-
-                    # Validate character class and position
-                    if not character_is_valid(character_data.get('Name'), character_data.get('Class'),
-                                              character_data.get('Position')):
-                        error_messages.append(f"{character_data['Class']} cannot be a {character_data['Position']}.")
-
-                    if all(k in character_data for k in ['Name', 'Class', 'Position']):
-                        if tank_count > MAX_TANKS:
-                            error_messages.append("There cannot be more than 2 Tanks.")
-                        if heal_count > MAX_HEALS:
-                            error_messages.append("There cannot be more than 2 Healers.")
-
-                        if not any(error_messages):
-                            Character.objects.create(
-                                name=character_data['Name'],
-                                character_class=character_data['Class'],
-                                position=character_data['Position']
-                            )
-
-                    character_data = {}
-
-            if character_data and all(k in character_data for k in ['Name', 'Class', 'Position']):
-                if character_data['Name'] in names_set:
+            if line == '':
+                if character_data.get('Name') in names_set:
                     error_messages.append(f"Names cannot be the same: {character_data['Name']}")
                 else:
                     names_set.add(character_data['Name'])
@@ -94,17 +62,49 @@ def upload_csv(request):
                                           character_data.get('Position')):
                     error_messages.append(f"{character_data['Class']} cannot be a {character_data['Position']}.")
 
-                if tank_count > MAX_TANKS:
-                    error_messages.append("There cannot be more than 2 Tanks.")
-                if heal_count > MAX_HEALS:
-                    error_messages.append("There cannot be more than 2 Healers.")
+                if all(k in character_data for k in ['Name', 'Class', 'Position']):
+                    if tank_count > MAX_TANKS:
+                        error_messages.append("There cannot be more than 2 Tanks.")
+                    if heal_count > MAX_HEALS:
+                        error_messages.append("There cannot be more than 2 Healers.")
 
-                if not any(error_messages):
-                    Character.objects.create(
-                        name=character_data['Name'],
-                        character_class=character_data['Class'],
-                        position=character_data['Position']
-                    )
+                    if not any(error_messages):
+                        Character.objects.create(
+                            name=character_data['Name'],
+                            character_class=character_data['Class'],
+                            position=character_data['Position']
+                        )
+
+                character_data = {}
+
+        # Handle the last character if the file didn't end with a newline
+        if character_data and all(k in character_data for k in ['Name', 'Class', 'Position']):
+            if character_data['Name'] in names_set:
+                error_messages.append(f"Names cannot be the same: {character_data['Name']}")
+            else:
+                names_set.add(character_data['Name'])
+
+            if 'Tank' in character_data.get('Position', ''):
+                tank_count += 1
+            if 'Heal' in character_data.get('Position', ''):
+                heal_count += 1
+
+            # Validate character class and position
+            if not character_is_valid(character_data.get('Name'), character_data.get('Class'),
+                                      character_data.get('Position')):
+                error_messages.append(f"{character_data['Class']} cannot be a {character_data['Position']}.")
+
+            if tank_count > MAX_TANKS:
+                error_messages.append("There cannot be more than 2 Tanks.")
+            if heal_count > MAX_HEALS:
+                error_messages.append("There cannot be more than 2 Healers.")
+
+            if not any(error_messages):
+                Character.objects.create(
+                    name=character_data['Name'],
+                    character_class=character_data['Class'],
+                    position=character_data['Position']
+                )
 
         if error_messages:
             return render(request, 'upload_csv.html', {'error_messages': error_messages})
