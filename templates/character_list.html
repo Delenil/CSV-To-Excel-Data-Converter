@@ -22,7 +22,7 @@
     <script>
         function goBack() {
             // Get the previous page from history
-            if (document.referrer.includes('/login/')) {
+            if (document.referrer.includes('/login/') || document.referrer.includes('/register/'))  {
                 // Redirect to a safe page if the last page was login
                 window.location.href = "{% url 'character_list' %}"; // Redirect to character list or any other page
             } else {
