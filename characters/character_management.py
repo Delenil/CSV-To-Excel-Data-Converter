@@ -1,5 +1,8 @@
 # character_management.py
+import pandas as pd
+
 from .models import Character
+from collections import Counter
 
 MAX_TANKS = 2
 MAX_HEALS = 2
@@ -62,3 +65,26 @@ class CharacterManager:
     @staticmethod
     def count_characters_by_position(user, position):
         return Character.objects.filter(position=position, user=user).count()
+
+    @staticmethod
+    def get_characters(user):
+        return Character.objects.filter(user=user)
+
+    @staticmethod
+    def filter_characters_by_position(user, position):
+        return Character.objects.filter(user=user, position=position)
+
+    @staticmethod
+    def sort_characters_by_name(user):
+        return Character.objects.filter(user=user).order_by('name')
+
+    @staticmethod
+    def aggregate_character_classes(user):
+        characters = Character.objects.filter(user=user)
+        class_counts = Counter(character.character_class for character in characters)
+        return dict(class_counts)
+
+    @staticmethod
+    def export_characters_to_dataframe(user):
+        characters = Character.objects.filter(user=user).values()
+        return pd.DataFrame(list(characters))

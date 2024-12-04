@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import render, redirect, get_object_or_404
 from .models import Character
-from .character_management import CharacterValidator, CharacterManager, MAX_HEALS, MAX_TANKS  # Import the new classes
+from .character_management import CharacterValidator, CharacterManager, MAX_TANKS, MAX_HEALS
 from django.http import HttpResponse
 import pandas as pd
 from io import StringIO
@@ -61,8 +61,14 @@ def upload_csv(request):
 
 @login_required
 def character_list(request):
-    characters = Character.objects.filter(user=request.user)[:MAX_DISPLAYED_CHARACTERS]
-    return render(request, 'character_list.html', {'characters': characters})
+    # Use the sorting method to display characters sorted by name
+    characters = CharacterManager.sort_characters_by_name(request.user)[:MAX_DISPLAYED_CHARACTERS]
+    # Aggregating character classes for display or analysis
+    character_classes_count = CharacterManager.aggregate_character_classes(request.user)
+    return render(request, 'character_list.html', {
+        'characters': characters,
+        'character_classes_count': character_classes_count,
+    })
 
 @login_required
 def add_character(request):
@@ -109,15 +115,15 @@ def delete_character(request, character_id):
 
 @login_required
 def export_to_excel(request):
-    characters = Character.objects.filter(user=request.user)[:MAX_DISPLAYED_CHARACTERS].values()
+    # Use the export method from CharacterManager
+    df = CharacterManager.export_characters_to_dataframe(request.user)
 
-    if not characters:
+    if df.empty:
         return render(request, 'character_list.html', {
             'characters': [],
             'error_message': 'No characters available to export.'
         })
 
-    df = pd.DataFrame(list(characters))
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename=characters.xlsx'
     df.to_excel(response, index=False)
