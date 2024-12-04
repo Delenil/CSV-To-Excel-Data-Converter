@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Character</title>
+</head>
+<body>
+    <h1>Add New Character</h1>
+    {% if error_message %}
+        <div style="color: red;">{{ error_message }}</div>
+    {% endif %}
+    <form method="POST">
+        {% csrf_token %}
+        <label for="name">Name:</label>
+        <input type="text" name="name" required><br>
+        <label for="class">Class:</label>
+        <select name="class" required>
+            <option value="Warlock">Warlock</option>
+            <option value="Paladin">Paladin</option>
+            <option value="Shaman">Shaman</option>
+            <option value="Mage">Mage</option>
+            <option value="Druid">Druid</option>
+            <option value="Warrior">Warrior</option>
+        </select><br>
+        <label for="position">Position:</label>
+        <select name="position" required>
+            <option value="Tank">Tank</option>
+            <option value="Heal">Heal</option>
+            <option value="Melee_Dps">Melee DPS</option>
+            <option value="Ranged_Dps">Ranged DPS</option>
+        </select><br>
+        <button type="submit">Add Character</button>
+    </form>
+    <a href="{% url 'character_list' %}">Back to Character List</a>
+</body>
+</html>
